@@ -16,7 +16,7 @@ import pandas as pd
 genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
 
 # ---------------------------
-# 🌦 Weather Forecast Function (OpenWeatherMap API)
+# 🌦 Weather Forecast Function
 # ---------------------------
 def get_weather_forecast(destination, days):
     api_key = os.getenv("OPENWEATHER_API_KEY")
@@ -65,7 +65,7 @@ def export_pdf(itinerary_text):
     return pdf_file
 
 # ---------------------------
-# 🌍 Streamlit App Setup
+# 🌍 Streamlit Setup
 # ---------------------------
 st.set_page_config(page_title="AI Trip Planner", layout="wide")
 st.title("✈️ AI Trip Planner")
@@ -84,6 +84,13 @@ destination = st.sidebar.text_input("Destination", "Goa")
 days = st.sidebar.number_input("Number of Days", min_value=1, max_value=30, value=3)
 budget = st.sidebar.number_input("Budget (INR)", min_value=1000, value=20000)
 
+# 🌍 Language Selection
+st.sidebar.header("🌍 Language")
+language = st.sidebar.selectbox(
+    "Choose Itinerary Language",
+    ["English", "Hindi", "Telugu", "Tamil", "French", "Spanish", "German"]
+)
+
 # ---------------------------
 # 🚀 Generate Itinerary
 # ---------------------------
@@ -93,10 +100,10 @@ if st.button("✨ Generate Itinerary"):
         response = genai.GenerativeModel("gemini-1.5-flash").generate_content(prompt)
         itinerary = response.text
 
-        # 🌦 Fetch weather forecast
+        # 🌦 Fetch weather
         weather_forecast = get_weather_forecast(destination, days)
 
-        # Merge weather inline with itinerary text
+        # Merge weather inline
         itinerary_with_weather = ""
         day_counter = 0
         for line in itinerary.split("\n"):
@@ -109,11 +116,18 @@ if st.button("✨ Generate Itinerary"):
             else:
                 itinerary_with_weather += line + "\n"
 
+        # 🌍 Translate if needed
+        if language != "English":
+            translate_prompt = f"Translate the following itinerary into {language}, keep format neat:\n\n{itinerary_with_weather}"
+            translated_response = genai.GenerativeModel("gemini-1.5-flash").generate_content(translate_prompt)
+            itinerary_with_weather = translated_response.text
+
+        # Save
         st.session_state.itinerary = itinerary_with_weather.strip()
         st.session_state.weather_forecast = weather_forecast
         st.session_state.booking_done = False
 
-    st.success("✅ Your itinerary is ready with live weather updates!")
+    st.success(f"✅ Your itinerary is ready with live weather updates in {language}!")
 
 # ---------------------------
 # 📋 Show Itinerary
@@ -128,15 +142,15 @@ if st.session_state.itinerary:
         st.subheader("🌦 Weather Forecast")
         st.table(pd.DataFrame(st.session_state.weather_forecast))
 
-    # 📥 Download PDF
+    # 📥 PDF Export
     pdf_file = export_pdf(st.session_state.itinerary)
     with open(pdf_file, "rb") as f:
         st.download_button("📥 Download Itinerary as PDF", f, file_name="itinerary.pdf")
 
+    # ---------------------------
+    # 💰 Budget Chart
+    # ---------------------------
     st.divider()
-    # ---------------------------
-    # 📊 Budget Chart
-    # ---------------------------
     st.subheader("💰 Budget Overview")
     labels = ["Travel", "Stay", "Food", "Activities", "Misc"]
     values = [budget * 0.3, budget * 0.25, budget * 0.2, budget * 0.15, budget * 0.1]
@@ -144,19 +158,19 @@ if st.session_state.itinerary:
     ax.pie(values, labels=labels, autopct="%1.1f%%")
     st.pyplot(fig)
 
+    # ---------------------------
+    # 📍 Google Maps Embed
+    # ---------------------------
     st.divider()
-    # ---------------------------
-    # 🗺 Google Maps Embed
-    # ---------------------------
     st.subheader("📍 Destination Map")
     maps_key = os.getenv("GOOGLE_MAPS_KEY")
     maps_url = f"https://www.google.com/maps/embed/v1/place?key={maps_key}&q={destination}"
     st.components.v1.iframe(maps_url, width=700, height=400)
 
-    st.divider()
     # ---------------------------
     # 🛎 Book My Trip
     # ---------------------------
+    st.divider()
     st.subheader("🛎 Book My Trip")
     if not st.session_state.booking_done:
         with st.form("booking_form_once"):
