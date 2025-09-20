@@ -3,3 +3,4 @@ google-generativeai
 fpdf2
 matplotlib
 deep-translator
+deep-translator==1.11.4
