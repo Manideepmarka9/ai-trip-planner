@@ -8,11 +8,38 @@ import streamlit as st
 import google.generativeai as genai
 from fpdf import FPDF
 import matplotlib.pyplot as plt
+import requests
 
 # ---------------------------
 # 🔑 Configure Google Gemini API
 # ---------------------------
 genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
+
+# ---------------------------
+# 🌦 Weather Forecast Function (OpenWeatherMap API)
+# ---------------------------
+def get_weather_forecast(destination, days):
+    api_key = os.getenv("OPENWEATHER_API_KEY")
+    if not api_key:
+        return ["⚠️ No weather API key configured."]
+
+    url = f"http://api.openweathermap.org/data/2.5/forecast?q={destination}&units=metric&appid={api_key}"
+    try:
+        response = requests.get(url)
+        data = response.json()
+
+        if response.status_code != 200 or "list" not in data:
+            return [f"⚠️ Weather not available for {destination}"]
+
+        forecasts = []
+        for i in range(days):
+            forecast = data["list"][i * 8]  # every 24 hours (8 intervals of 3h)
+            temp = forecast["main"]["temp"]
+            desc = forecast["weather"][0]["description"].capitalize()
+            forecasts.append(f"Day {i+1}: {desc}, {temp}°C")
+        return forecasts
+    except Exception as e:
+        return [f"⚠️ Error fetching weather: {str(e)}"]
 
 # ---------------------------
 # 📄 PDF Export Function
@@ -57,22 +84,35 @@ budget = st.sidebar.number_input("Budget (INR)", min_value=1000, value=20000)
 # ---------------------------
 if st.button("✨ Generate Itinerary"):
     with st.spinner("✍️ Creating your personalized trip plan..."):
-        prompt = f"Plan a {days}-day trip to {destination} for {budget} INR."
+        prompt = f"Plan a {days}-day trip to {destination} for {budget} INR. Give it in day-wise format."
         response = genai.GenerativeModel("gemini-1.5-flash").generate_content(prompt)
         itinerary = response.text
 
+        # 🌦 Fetch weather forecast
+        weather_forecast = get_weather_forecast(destination, days)
+
+        # Merge weather into itinerary
+        itinerary_with_weather = ""
+        for i, line in enumerate(itinerary.split("\n")):
+            if line.strip().lower().startswith("day"):
+                itinerary_with_weather += f"{line}\n"
+                if i < len(weather_forecast):
+                    itinerary_with_weather += f"   🌦 Weather: {weather_forecast[i]}\n"
+            else:
+                itinerary_with_weather += line + "\n"
+
         # Save in session state
-        st.session_state.itinerary = itinerary
+        st.session_state.itinerary = itinerary_with_weather.strip()
         st.session_state.booking_done = False  # reset booking
 
-    st.success("✅ Your itinerary is ready!")
+    st.success("✅ Your itinerary is ready with live weather updates!")
 
 # ---------------------------
 # 📋 Show Itinerary
 # ---------------------------
 if st.session_state.itinerary:
     st.divider()
-    st.subheader("🗺 Your AI Trip Itinerary")
+    st.subheader("🗺 Your AI Trip Itinerary (with Weather)")
     st.write(st.session_state.itinerary)
 
     # 📥 Download PDF
