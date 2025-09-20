@@ -9,7 +9,7 @@ import google.generativeai as genai
 from fpdf import FPDF
 import matplotlib.pyplot as plt
 import requests
-from deep_translator import GoogleTranslator
+from googletrans import Translator
 
 # ---------------------------
 # 🔑 Configure Google Gemini API
@@ -37,39 +37,10 @@ def get_weather_forecast(destination, days):
             forecast = data["list"][i * 8]  # every 24 hours (8 intervals of 3h)
             temp = forecast["main"]["temp"]
             desc = forecast["weather"][0]["description"].capitalize()
-
-            # Smart suggestions based on weather
-            if "rain" in desc.lower():
-                tip = "🌧️ Rain expected — consider indoor plans like museums, spice plantations, or cafes."
-            else:
-                tip = "☀️ Good weather — enjoy outdoor plans like beaches, forts, or shopping."
-
-            forecasts.append(f"Day {i+1}: {desc}, {temp}°C → {tip}")
+            forecasts.append(f"Day {i+1}: {desc}, {temp}°C")
         return forecasts
     except Exception as e:
         return [f"⚠️ Error fetching weather: {str(e)}"]
-
-# ---------------------------
-# 🏙 Google Places API Recommendations
-# ---------------------------
-def get_google_places(destination):
-    maps_key = os.getenv("GOOGLE_MAPS_KEY")
-    if not maps_key:
-        return ["⚠️ No Google Maps API key configured."]
-
-    url = f"https://maps.googleapis.com/maps/api/place/textsearch/json?query=tourist+attractions+in+{destination}&key={maps_key}"
-    try:
-        response = requests.get(url)
-        data = response.json()
-        if "results" not in data:
-            return ["⚠️ Could not fetch recommendations."]
-
-        places = []
-        for place in data["results"][:5]:
-            places.append(f"🏛️ {place['name']}")
-        return places
-    except Exception as e:
-        return [f"⚠️ Error fetching places: {str(e)}"]
 
 # ---------------------------
 # 📄 PDF Export Function
@@ -78,7 +49,6 @@ def export_pdf(itinerary_text):
     pdf = FPDF()
     pdf.add_page()
 
-    # Use Unicode font
     font_path = "DejaVuSans.ttf"
     pdf.add_font("DejaVu", "", font_path)
     pdf.set_font("DejaVu", size=12)
@@ -108,7 +78,7 @@ st.sidebar.header("📝 Trip Details")
 destination = st.sidebar.text_input("Destination", "Goa")
 days = st.sidebar.number_input("Number of Days", min_value=1, max_value=30, value=3)
 budget = st.sidebar.number_input("Budget (INR)", min_value=1000, value=20000)
-language = st.sidebar.selectbox("Translate Itinerary To", ["English", "Hindi", "Telugu", "Tamil", "French"])
+language = st.sidebar.selectbox("Translate Itinerary To", ["English", "Hindi", "French", "Spanish", "German"])
 
 # ---------------------------
 # 🚀 Generate Itinerary
@@ -137,26 +107,24 @@ if st.button("✨ Generate Itinerary"):
         # 🌍 Translate if not English
         if language != "English":
             try:
-                itinerary_with_weather = GoogleTranslator(source="auto", target=language.lower()).translate(itinerary_with_weather)
-            except Exception:
-                st.warning("⚠️ Translation failed, showing in English.")
-
-        # 🏙 Google Places Recommendations
-        places = get_google_places(destination)
-        itinerary_with_weather += "\n\n🏙 Recommended Places to Visit:\n" + "\n".join(places)
+                translator = Translator()
+                translated_text = translator.translate(itinerary_with_weather, dest=language.lower()[:2]).text
+                itinerary_with_weather = translated_text
+            except Exception as e:
+                st.warning(f"⚠️ Translation failed: {str(e)}")
 
         # Save in session state
         st.session_state.itinerary = itinerary_with_weather.strip()
-        st.session_state.booking_done = False  # reset booking
+        st.session_state.booking_done = False
 
-    st.success("✅ Your itinerary is ready with live weather, smart tips & recommendations!")
+    st.success("✅ Your itinerary is ready with live weather updates!")
 
 # ---------------------------
 # 📋 Show Itinerary
 # ---------------------------
 if st.session_state.itinerary:
     st.divider()
-    st.subheader("🗺 Your AI Trip Itinerary")
+    st.subheader("🗺 Your AI Trip Itinerary (with Weather)")
     st.write(st.session_state.itinerary)
 
     # 📥 Download PDF
@@ -166,7 +134,7 @@ if st.session_state.itinerary:
 
     st.divider()
     # ---------------------------
-    # 📊 Budget Chart
+    # 💰 Budget Chart
     # ---------------------------
     st.subheader("💰 Budget Overview")
     labels = ["Travel", "Stay", "Food", "Activities", "Misc"]
@@ -178,12 +146,15 @@ if st.session_state.itinerary:
 
     st.divider()
     # ---------------------------
-    # 🗺 Google Maps Embed
+    # 📍 Google Maps Embed
     # ---------------------------
     st.subheader("📍 Destination Map")
     maps_key = os.getenv("GOOGLE_MAPS_KEY")
-    maps_url = f"https://www.google.com/maps/embed/v1/place?key={maps_key}&q={destination}"
-    st.components.v1.iframe(maps_url, width=700, height=400)
+    if maps_key:
+        maps_url = f"https://www.google.com/maps/embed/v1/place?key={maps_key}&q={destination}"
+        st.components.v1.iframe(maps_url, width=700, height=400)
+    else:
+        st.info("ℹ️ Google Maps API key not configured.")
 
     st.divider()
     # ---------------------------
