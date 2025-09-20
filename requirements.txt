@@ -2,3 +2,4 @@ streamlit
 google-generativeai
 fpdf2
 matplotlib
+deep-translator
