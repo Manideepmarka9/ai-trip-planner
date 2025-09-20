@@ -3,4 +3,3 @@ fpdf
 matplotlib
 requests
 google-generativeai
-googletrans==4.0.0-rc1
