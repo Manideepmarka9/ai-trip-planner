@@ -1,0 +1,22 @@
+{
+  "name": "ai-trip-planner-mcp",
+  "description": "MCP server exposing itinerary planning, weather, translation and PDF export",
+  "tools": [
+    {
+      "name": "generate_itinerary",
+      "description": "Generates a personalized itinerary using Gemini AI."
+    },
+    {
+      "name": "weather_forecast",
+      "description": "Provides day-wise weather forecast for destination."
+    },
+    {
+      "name": "translate_itinerary",
+      "description": "Translates itinerary into target language."
+    },
+    {
+      "name": "export_itinerary_pdf",
+      "description": "Exports itinerary into a PDF file."
+    }
+  ]
+}
