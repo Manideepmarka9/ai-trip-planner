@@ -13,20 +13,25 @@ import requests
 # ---------------------------
 # 🔑 Configure Google Gemini API
 # ---------------------------
-genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
+genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
 
 # ---------------------------
 # 🌦 Weather Forecast Function (OpenWeatherMap API)
 # ---------------------------
 def get_weather_forecast(destination, days):
-    api_key = os.getenv("OPENWEATHER_API_KEY")
-    if not api_key:
+    try:
+        api_key = st.secrets["OPENWEATHER_API_KEY"]  # ✅ use st.secrets
+    except KeyError:
         return ["⚠️ No weather API key configured."]
 
     url = f"http://api.openweathermap.org/data/2.5/forecast?q={destination}&units=metric&appid={api_key}"
     try:
         response = requests.get(url)
         data = response.json()
+
+        # Debug logs
+        st.write("DEBUG: Weather API status", response.status_code)
+        st.write("DEBUG: Weather API sample", str(data)[:200])
 
         if response.status_code != 200 or "list" not in data:
             return [f"⚠️ Weather not available for {destination}"]
@@ -91,15 +96,8 @@ if st.button("✨ Generate Itinerary"):
         # 🌦 Fetch weather forecast
         weather_forecast = get_weather_forecast(destination, days)
 
-        # Merge weather into itinerary
-        itinerary_with_weather = ""
-        for i, line in enumerate(itinerary.split("\n")):
-            if line.strip().lower().startswith("day"):
-                itinerary_with_weather += f"{line}\n"
-                if i < len(weather_forecast):
-                    itinerary_with_weather += f"   🌦 Weather: {weather_forecast[i]}\n"
-            else:
-                itinerary_with_weather += line + "\n"
+        # Merge weather as a separate section
+        itinerary_with_weather = itinerary + "\n\n🌦 Weather Forecast:\n" + "\n".join(weather_forecast)
 
         # Save in session state
         st.session_state.itinerary = itinerary_with_weather.strip()
@@ -137,9 +135,12 @@ if st.session_state.itinerary:
     # 🗺 Google Maps Embed
     # ---------------------------
     st.subheader("📍 Destination Map")
-    maps_key = os.getenv("GOOGLE_MAPS_KEY")
-    maps_url = f"https://www.google.com/maps/embed/v1/place?key={maps_key}&q={destination}"
-    st.components.v1.iframe(maps_url, width=700, height=400)
+    try:
+        maps_key = st.secrets["GOOGLE_MAPS_KEY"]
+        maps_url = f"https://www.google.com/maps/embed/v1/place?key={maps_key}&q={destination}"
+        st.components.v1.iframe(maps_url, width=700, height=400)
+    except KeyError:
+        st.warning("⚠️ Google Maps API key not configured.")
 
     st.divider()
     # ---------------------------
