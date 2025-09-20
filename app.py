@@ -85,6 +85,14 @@ days = st.sidebar.number_input("Number of Days", min_value=1, max_value=30, valu
 budget = st.sidebar.number_input("Budget (INR)", min_value=1000, value=20000)
 
 # ---------------------------
+# 🌍 Language Selection
+# ---------------------------
+st.sidebar.header("🌍 Language")
+language = st.sidebar.selectbox(
+    "Choose Itinerary Language",
+    ["English", "Hindi", "Telugu", "Tamil", "French", "Spanish", "German"]
+)
+# ---------------------------
 # 🚀 Generate Itinerary
 # ---------------------------
 if st.button("✨ Generate Itinerary"):
@@ -96,7 +104,7 @@ if st.button("✨ Generate Itinerary"):
         # 🌦 Fetch weather forecast
         weather_forecast = get_weather_forecast(destination, days)
 
-        # Merge weather inline with itinerary text
+        # Merge weather inline
         itinerary_with_weather = ""
         day_counter = 0
         for line in itinerary.split("\n"):
@@ -109,11 +117,18 @@ if st.button("✨ Generate Itinerary"):
             else:
                 itinerary_with_weather += line + "\n"
 
+        # 🌍 Translate if needed
+        if language != "English":
+            translate_prompt = f"Translate the following itinerary into {language}, keep format neat:\n\n{itinerary_with_weather}"
+            translated_response = genai.GenerativeModel("gemini-1.5-flash").generate_content(translate_prompt)
+            itinerary_with_weather = translated_response.text
+
+        # Save in session state
         st.session_state.itinerary = itinerary_with_weather.strip()
         st.session_state.weather_forecast = weather_forecast
         st.session_state.booking_done = False
 
-    st.success("✅ Your itinerary is ready with live weather updates!")
+    st.success(f"✅ Your itinerary is ready with live weather updates in {language}!")
 
 # ---------------------------
 # 📋 Show Itinerary
