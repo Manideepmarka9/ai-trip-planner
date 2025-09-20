@@ -1,5 +1,6 @@
 streamlit
-fpdf
-matplotlib
-requests
 google-generativeai
+requests
+fpdf2
+matplotlib
+deep-translator
