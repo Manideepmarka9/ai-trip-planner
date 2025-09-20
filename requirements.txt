@@ -1,6 +1,6 @@
 streamlit
-google-generativeai
-fpdf2
+fpdf
 matplotlib
-deep-translator
-deep-translator==1.11.4
+requests
+google-generativeai
+googletrans==4.0.0-rc1
