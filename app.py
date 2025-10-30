@@ -1,8 +1,5 @@
 import os
 import logging
-os.environ["GRPC_VERBOSITY"] = "NONE"
-logging.getLogger("absl").setLevel(logging.ERROR)
-
 import streamlit as st
 import google.generativeai as genai
 from fpdf import FPDF
@@ -10,16 +7,23 @@ import matplotlib.pyplot as plt
 import requests
 import pandas as pd
 
-# ---------------------------
-# 🔑 Configure Google Gemini API
-# ---------------------------
-genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
+# ---------------------------------------------------
+# 🧹 Silence unnecessary logs
+# ---------------------------------------------------
+os.environ["GRPC_VERBOSITY"] = "NONE"
+logging.getLogger("absl").setLevel(logging.ERROR)
 
-# ---------------------------
+# ---------------------------------------------------
+# 🔑 Configure Google Gemini API
+# ---------------------------------------------------
+# Streamlit Cloud: Add GOOGLE_API_KEY in your app Secrets
+genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
+
+# ---------------------------------------------------
 # 🌦 Weather Forecast Function
-# ---------------------------
+# ---------------------------------------------------
 def get_weather_forecast(destination, days):
-    api_key = os.getenv("OPENWEATHER_API_KEY")
+    api_key = os.getenv("OPENWEATHER_API_KEY") or st.secrets.get("OPENWEATHER_API_KEY")
     if not api_key:
         return []
 
@@ -33,7 +37,7 @@ def get_weather_forecast(destination, days):
 
         forecasts = []
         for i in range(days):
-            forecast = data["list"][i * 8]  # every 24 hours
+            forecast = data["list"][i * 8]  # 24-hour interval
             temp = forecast["main"]["temp"]
             desc = forecast["weather"][0]["description"].capitalize()
             icon = "☀️"
@@ -44,66 +48,75 @@ def get_weather_forecast(destination, days):
             elif "clear" in desc.lower():
                 icon = "☀️"
 
-            forecasts.append({"Day": f"Day {i+1}", "Weather": f"{icon} {desc}", "Temp (°C)": f"{temp:.1f}"})
+            forecasts.append({
+                "Day": f"Day {i+1}",
+                "Weather": f"{icon} {desc}",
+                "Temp (°C)": f"{temp:.1f}"
+            })
         return forecasts
-    except:
+    except Exception:
         return []
 
-# ---------------------------
+# ---------------------------------------------------
 # 📄 PDF Export Function
-# ---------------------------
+# ---------------------------------------------------
 def export_pdf(itinerary_text):
     pdf = FPDF()
     pdf.add_page()
     font_path = "DejaVuSans.ttf"
-    pdf.add_font("DejaVu", "", font_path)
-    pdf.set_font("DejaVu", size=12)
+    if not os.path.exists(font_path):
+        pdf.set_font("Arial", size=12)
+    else:
+        pdf.add_font("DejaVu", "", font_path)
+        pdf.set_font("DejaVu", size=12)
+
     safe_text = str(itinerary_text)
     pdf.multi_cell(0, 10, safe_text)
     pdf_file = "itinerary.pdf"
     pdf.output(pdf_file)
     return pdf_file
 
-# ---------------------------
-# 🌍 Streamlit Setup
-# ---------------------------
+# ---------------------------------------------------
+# 🌍 Streamlit UI Setup
+# ---------------------------------------------------
 st.set_page_config(page_title="AI Trip Planner", layout="wide")
 st.title("✈️ AI Trip Planner")
 
-# Session state
 if "itinerary" not in st.session_state:
     st.session_state.itinerary = None
 if "booking_done" not in st.session_state:
     st.session_state.booking_done = False
 
-# ---------------------------
-# 📝 Trip Input
-# ---------------------------
+# ---------------------------------------------------
+# 📝 Trip Input Sidebar
+# ---------------------------------------------------
 st.sidebar.header("📝 Trip Details")
 destination = st.sidebar.text_input("Destination", "Goa")
 days = st.sidebar.number_input("Number of Days", min_value=1, max_value=30, value=3)
 budget = st.sidebar.number_input("Budget (INR)", min_value=1000, value=20000)
 
-# 🌍 Language Selection
 st.sidebar.header("🌍 Language")
 language = st.sidebar.selectbox(
     "Choose Itinerary Language",
     ["English", "Hindi", "Telugu", "Tamil", "French", "Spanish", "German"]
 )
 
-# ---------------------------
+# ---------------------------------------------------
 # 🚀 Generate Itinerary
-# ---------------------------
+# ---------------------------------------------------
 if st.button("✨ Generate Itinerary"):
     with st.spinner("✍️ Creating your personalized trip plan..."):
+        model = genai.GenerativeModel("gemini-1.5-flash")
+
+        # Step 1: Generate base itinerary
         prompt = f"Plan a {days}-day trip to {destination} for {budget} INR. Give it in day-wise format."
-        response = genai.GenerativeModel("gemini-1.5-flash").generate_content(prompt)
+        response = model.generate_content(prompt)
         itinerary = response.text
 
-        # 🌦 Fetch weather
+        # Step 2: Fetch weather forecast
         weather_forecast = get_weather_forecast(destination, days)
 
-        # Merge weather inline
+        # Step 3: Merge weather with itinerary
         itinerary_with_weather = ""
         day_counter = 0
         for line in itinerary.split("\n"):
@@ -116,40 +129,41 @@ if st.button("✨ Generate Itinerary"):
             else:
                 itinerary_with_weather += line + "\n"
 
-        # 🌍 Translate if needed
+        # Step 4: Translate (if needed)
         if language != "English":
-            translate_prompt = f"Translate the following itinerary into {language}, keep format neat:\n\n{itinerary_with_weather}"
-            translated_response = genai.GenerativeModel("gemini-1.5-flash").generate_content(translate_prompt)
+            translate_prompt = (
+                f"Translate the following itinerary into {language}, "
+                f"keeping the same format and emojis:\n\n{itinerary_with_weather}"
+            )
+            translated_response = model.generate_content(translate_prompt)
             itinerary_with_weather = translated_response.text
 
-        # Save
+        # Step 5: Save in session
         st.session_state.itinerary = itinerary_with_weather.strip()
         st.session_state.weather_forecast = weather_forecast
         st.session_state.booking_done = False
 
     st.success(f"✅ Your itinerary is ready with live weather updates in {language}!")
 
-# ---------------------------
-# 📋 Show Itinerary
-# ---------------------------
+# ---------------------------------------------------
+# 📋 Display Itinerary
+# ---------------------------------------------------
 if st.session_state.itinerary:
     st.divider()
     st.subheader("🗺 Your AI Trip Itinerary (with Weather)")
     st.write(st.session_state.itinerary)
 
-    # 🌦 Weather Table
+    # 🌦 Weather Forecast Table
     if st.session_state.weather_forecast:
         st.subheader("🌦 Weather Forecast")
         st.table(pd.DataFrame(st.session_state.weather_forecast))
 
-    # 📥 PDF Export
+    # 📥 PDF Export Button
     pdf_file = export_pdf(st.session_state.itinerary)
     with open(pdf_file, "rb") as f:
         st.download_button("📥 Download Itinerary as PDF", f, file_name="itinerary.pdf")
 
-    # ---------------------------
-    # 💰 Budget Chart
-    # ---------------------------
+    # 💰 Budget Overview Chart
     st.divider()
     st.subheader("💰 Budget Overview")
     labels = ["Travel", "Stay", "Food", "Activities", "Misc"]
@@ -158,18 +172,17 @@ if st.session_state.itinerary:
     ax.pie(values, labels=labels, autopct="%1.1f%%")
     st.pyplot(fig)
 
-    # ---------------------------
     # 📍 Google Maps Embed
-    # ---------------------------
     st.divider()
     st.subheader("📍 Destination Map")
-    maps_key = os.getenv("GOOGLE_MAPS_KEY")
-    maps_url = f"https://www.google.com/maps/embed/v1/place?key={maps_key}&q={destination}"
-    st.components.v1.iframe(maps_url, width=700, height=400)
+    maps_key = os.getenv("GOOGLE_MAPS_KEY") or st.secrets.get("GOOGLE_MAPS_KEY")
+    if maps_key:
+        maps_url = f"https://www.google.com/maps/embed/v1/place?key={maps_key}&q={destination}"
+        st.components.v1.iframe(maps_url, width=700, height=400)
+    else:
+        st.info("🔑 Add GOOGLE_MAPS_KEY in Streamlit Secrets to enable map display.")
 
-    # ---------------------------
-    # 🛎 Book My Trip
-    # ---------------------------
+    # 🛎 Demo Booking Section
     st.divider()
     st.subheader("🛎 Book My Trip")
     if not st.session_state.booking_done:
