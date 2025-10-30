@@ -106,7 +106,7 @@ language = st.sidebar.selectbox(
 # ---------------------------------------------------
 if st.button("✨ Generate Itinerary"):
     with st.spinner("✍️ Creating your personalized trip plan..."):
-        model = genai.GenerativeModel("gemini-1.5-flash")
+        model = genai.GenerativeModel("models/gemini-1.5-flash-latest")
 
         # Step 1: Generate base itinerary
         prompt = f"Plan a {days}-day trip to {destination} for {budget} INR. Give it in day-wise format."
