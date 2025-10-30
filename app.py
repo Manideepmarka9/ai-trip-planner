@@ -13,7 +13,7 @@ import pandas as pd
 # ---------------------------
 # 🔑 Configure Google Gemini API
 # ---------------------------
-genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
+genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
 
 # ---------------------------
 # 🌦 Weather Forecast Function
